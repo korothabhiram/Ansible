@@ -27,7 +27,7 @@ Ansible is an open-source **IT automation tool** used to manage configurations, 
 ---
 # 🅰️ Ansible Reference Guide
 
-Ansible leans more on **structure and concepts** than a huge list of one-off commands. Below is a mix of the ad-hoc commands you'll actually use, plus the core concepts (inventory, roles, playbooks, Galaxy, tags, handlers) you'll reach for constantly.
+Ansible leans more on **structure and concepts** than a huge list of one-off commands. Below is a mix of the ad-hoc commands you'll actually use, plus the core concepts (inventory, playbooks, facts, roles, Galaxy, tags, handlers) you'll reach for constantly.
 
 ---
 
@@ -107,38 +107,6 @@ keyed_groups:
 
 ---
 
-## 🎭 Roles
-
-A **role** is a reusable, self-contained bundle of tasks, handlers, variables, files, templates, and defaults, organized in a standard directory structure—the main way Ansible content is shared and reused.
-
-```
-roles/
-└── webserver/
-    ├── tasks/main.yml       # the actual steps
-    ├── handlers/main.yml    # notify targets (e.g. restart service)
-    ├── templates/           # Jinja2 templates (.j2)
-    ├── files/                # static files to copy
-    ├── vars/main.yml         # role-specific variables (high precedence)
-    ├── defaults/main.yml     # default variables (low precedence, easily overridden)
-    └── meta/main.yml         # role metadata & dependencies
-```
-
-| Command | Description |
-|--------|-------------|
-| `ansible-galaxy init roles/<name>` | 🆕 Scaffold a new role's directory structure |
-| `ansible-galaxy role list` | 📋 List installed roles |
-
-Using a role in a playbook:
-
-```yaml
-- hosts: webservers
-  roles:
-    - webserver
-    - { role: firewall, tags: ['security'] }
-```
-
----
-
 ## 📜 Playbooks
 
 A **playbook** is a YAML file describing one or more **plays**—each targeting a set of hosts and running an ordered list of tasks (directly, or via roles).
@@ -179,6 +147,66 @@ A **playbook** is a YAML file describing one or more **plays**—each targeting 
 | `ansible-playbook site.yml -e "env=prod"` | 🔑 Pass extra variables |
 | `ansible-playbook site.yml --syntax-check` | ✔️ Validate YAML/playbook syntax only |
 | `ansible-playbook site.yml -v` / `-vvv` | 🐛 Increase verbosity for debugging |
+
+---
+
+## 🧠 Ansible Facts
+
+**Facts** are system/environment data (OS, IP addresses, memory, disks, hostname, etc.) that Ansible automatically discovers from each target host at the start of a play via the built-in `setup` module—no extra config needed. Facts let playbooks make decisions based on what a host actually looks like, instead of hardcoding assumptions.
+
+```yaml
+- name: Show some facts
+  debug:
+    msg: "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }} on {{ ansible_facts['default_ipv4']['address'] }}"
+
+- name: Only run on Debian-family hosts
+  apt:
+    name: nginx
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+```
+
+| Command | Description |
+|--------|-------------|
+| `ansible all -m setup` | 🧠 Gather and print all facts for hosts |
+| `ansible all -m setup -a "filter=ansible_distribution*"` | 🔍 Gather only facts matching a filter |
+| `ansible-playbook site.yml --start-at-task="Task name"` | ⏭️ Skip ahead, still gathers facts first by default |
+
+- Disable fact gathering with `gather_facts: false` in a play if you don't need it—speeds up runs.
+- **Custom facts** can be added via `fact_caching`, a `setup` module fact file, or the `set_fact` module mid-play.
+- Facts are namespaced under `ansible_facts` (e.g. `ansible_facts['hostname']`); the older bare `ansible_hostname` style still works but the namespaced form is preferred.
+
+---
+
+## 🎭 Roles
+
+A **role** is a reusable, self-contained bundle of tasks, handlers, variables, files, templates, and defaults, organized in a standard directory structure—the main way Ansible content is shared and reused.
+
+```
+roles/
+└── webserver/
+    ├── tasks/main.yml       # the actual steps
+    ├── handlers/main.yml    # notify targets (e.g. restart service)
+    ├── templates/           # Jinja2 templates (.j2)
+    ├── files/                # static files to copy
+    ├── vars/main.yml         # role-specific variables (high precedence)
+    ├── defaults/main.yml     # default variables (low precedence, easily overridden)
+    └── meta/main.yml         # role metadata & dependencies
+```
+
+| Command | Description |
+|--------|-------------|
+| `ansible-galaxy init roles/<name>` | 🆕 Scaffold a new role's directory structure |
+| `ansible-galaxy role list` | 📋 List installed roles |
+
+Using a role in a playbook:
+
+```yaml
+- hosts: webservers
+  roles:
+    - webserver
+    - { role: firewall, tags: ['security'] }
+```
 
 ---
 
